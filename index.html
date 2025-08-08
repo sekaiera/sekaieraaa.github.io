@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Сапёр — улучшенная версия</title>
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      --panel-bg: rgba(255,255,255,0.05);
+      --accent: #00c896;
+      --accent2: #00a3ff;
+      --danger: #ff4f4f;
+      --success: #4fff93;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: var(--bg-gradient);
+      min-height: 100vh;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 20px;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    #topBar {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    #balance {
+      font-size: 18px;
+      margin-bottom: 5px;
+    }
+    #progressWrap {
+      width: 200px;
+      background: #333;
+      border-radius: 10px;
+      overflow: hidden;
+      height: 12px;
+      margin-bottom: 10px;
+    }
+    #progress {
+      background: linear-gradient(90deg, #00c896, #00a3ff);
+      height: 100%;
+      width: 0%;
+      transition: width 1s linear;
+    }
+    #controls {
+      margin-bottom: 10px;
+    }
+    select, input[type="number"] {
+      padding: 5px;
+      font-size: 14px;
+      margin-right: 5px;
+    }
+    button {
+      padding: 8px 15px;
+      font-size: 14px;
+      cursor: pointer;
+      margin-left: 5px;
+      border: none;
+      border-radius: 6px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    #game {
+      display: grid;
+      gap: 2px;
+    }
+    .cell {
+      width: 40px;
+      height: 40px;
+      background-color: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 16px;
+      user-select: none;
+      transition: background-color 0.2s, transform 0.1s ease;
+    }
+    .cell:hover {
+      background-color: rgba(255,255,255,0.12);
+      transform: scale(1.05);
+    }
+    .cell.open {
+      background-color: #ccc;
+      color: black;
+      cursor: default;
+    }
+    .cell.mine {
+      background-color: red;
+    }
+    .cell.flag {
+      background-color: #888;
+      color: yellow;
+    }
+    #shop {
+      margin-top: 15px;
+      border: 1px solid #555;
+      padding: 10px;
+      border-radius: 8px;
+      width: 280px;
+    }
+    .shop-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+    #stats {
+      margin-top: 15px;
+    }
+    #confettiCanvas {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  
+    #adminPanel {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.9);
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+      z-index: 9999;
+      color: white;
+      min-width: 300px;
+    }
+    #adminPanel input {
+      width: 100%;
+      padding: 6px;
+      margin: 5px 0;
+    }
+    #adminPanel button {
+      width: 100%;
+      margin-top: 5px;
+    }
+
+</style>
+</head>
+<body>
+
+<h1>Сапёр 💣</h1>
+<div id="topBar">
+  <div id="balance"></div>
+  <div id="progressWrap"><div id="progress"></div></div>
+  <small>+500 монет каждые 30 минут</small>
+</div>
+
+<div id="controls">
+  <select id="boardSize">
+    <option value="8,8,10">8×8 — 10 мин</option>
+    <option value="12,12,25">12×12 — 25 мин (расширенное)</option>
+  </select>
+  <input type="number" id="bet" placeholder="Ставка" min="1">
+  <button id="startGame">🎮 Начать игру</button>
+  <button id="hintBtn">Подсказка</button>
+  <button id="autoFlagBtn">Автофлаг</button>
+  <button id="autoClearBtn">Разминирование</button>
+</div>
+
+<div id="game"></div>
+
+<div id="shop">
+  <h3>Магазин бонусов</h3>
+  <div class="shop-item"><span>Подсказка (150)</span><button data-item="hint" data-cost="150">Купить</button></div>
+  <div class="shop-item"><span>Автофлаг (350)</span><button data-item="autoFlag" data-cost="350">Купить</button></div>
+  <div class="shop-item"><span>Разминирование (800)</span><button data-item="autoClear" data-cost="800">Купить</button></div>
+</div>
+
+<div id="stats">
+  <p>Уровень: <span id="level">1</span> | XP: <span id="xp">0</span></p>
+  <p>Рекорды: <span id="records">—</span></p>
+</div>
+
+<canvas id="confettiCanvas"></canvas>
+
+<script>
+// --- Game Variables ---
+let rows = 8, cols = 8, mineCount = 10;
+let field = [];
+let gameOver = true;
+let balance = 0;
+let currentBet = 0;
+let coinsTimer = 0;
+let level = 1;
+let xp = 0;
+let records = JSON.parse(localStorage.getItem("records") || "[]");
+let bonuses = { hint: 0, autoFlag: 0, autoClear: 0 };
+
+const gameContainer = document.getElementById("game");
+const balanceEl = document.getElementById("balance");
+const progressEl = document.getElementById("progress");
+const betInput = document.getElementById("bet");
+const startGameBtn = document.getElementById("startGame");
+const boardSizeSelect = document.getElementById("boardSize");
+const xpEl = document.getElementById("xp");
+const levelEl = document.getElementById("level");
+const recordsEl = document.getElementById("records");
+
+function loadState() {
+  balance = parseInt(localStorage.getItem("balance") || "1000", 10);
+  xp = parseInt(localStorage.getItem("xp") || "0", 10);
+  level = parseInt(localStorage.getItem("level") || "1", 10);
+  bonuses = JSON.parse(localStorage.getItem("bonuses") || '{"hint":0,"autoFlag":0,"autoClear":0}');
+  updateUI();
+}
+function saveState() {
+  localStorage.setItem("balance", balance);
+  localStorage.setItem("xp", xp);
+  localStorage.setItem("level", level);
+  localStorage.setItem("bonuses", JSON.stringify(bonuses));
+  localStorage.setItem("records", JSON.stringify(records));
+}
+
+function updateUI() {
+  balanceEl.textContent = `Монеты: ${balance}`;
+  xpEl.textContent = xp;
+  levelEl.textContent = level;
+  recordsEl.textContent = records.join(", ") || "—";
+}
+
+function checkBankrupt() {
+  if (balance <= 0) {
+    balance = 100;
+    alert("💰 Вы банкрот! Вам начислено 100 монет для продолжения игры.");
+    saveState();
+    updateUI();
+  }
+}
+function addCoinsOverTime() {
+  setInterval(() => {
+    coinsTimer += 1;
+    let progress = (coinsTimer / (30*60)) * 100;
+    progressEl.style.width = progress + "%";
+    if (coinsTimer >= 30*60) {
+      coinsTimer = 0;
+      balance += 500;
+      saveState();
+      updateUI();
+    }
+  }, 1000);
+}
+
+function createField() {
+  gameContainer.innerHTML = "";
+  gameContainer.style.gridTemplateColumns = `repeat(${cols}, 40px)`;
+  field = [];
+  gameOver = false;
+  for (let r=0; r<rows; r++) {
+    field[r] = [];
+    for (let c=0; c<cols; c++) {
+      field[r][c] = {mine:false, open:false, flagged:false, count:0, element:null};
+    }
+  }
+  let placed = 0;
+  while (placed < mineCount) {
+    let rr = Math.floor(Math.random()*rows);
+    let cc = Math.floor(Math.random()*cols);
+    if (!field[rr][cc].mine) {field[rr][cc].mine = true; placed++;}
+  }
+  for (let r=0; r<rows; r++) {
+    for (let c=0; c<cols; c++) {
+      if (field[r][c].mine) continue;
+      let count = 0;
+      for (let dr=-1; dr<=1; dr++) for (let dc=-1; dc<=1; dc++) {
+        let nr = r+dr, nc = c+dc;
+        if (nr>=0 && nr<rows && nc>=0 && nc<cols && field[nr][nc].mine) count++;
+      }
+      field[r][c].count = count;
+    }
+  }
+  for (let r=0; r<rows; r++) {
+    for (let c=0; c<cols; c++) {
+      let cell = document.createElement("div");
+      cell.classList.add("cell");
+      cell.dataset.r = r; cell.dataset.c = c;
+      cell.onclick = () => onLeftClick(r,c);
+      cell.oncontextmenu = (e) => {e.preventDefault(); toggleFlag(r,c);};
+      gameContainer.appendChild(cell);
+      field[r][c].element = cell;
+    }
+  }
+}
+
+function onLeftClick(r,c) {
+  if (gameOver) return;
+  let cell = field[r][c];
+  if (cell.open || cell.flagged) return;
+  if (cell.mine) {
+    revealAllMines();
+    gameOver = true;
+    balance -= currentBet;
+    saveState();
+    checkBankrupt();
+    updateUI();
+    alert("💥 Поражение!");
+    return;
+  }
+  openCell(r,c);
+  if (checkWin()) {
+    gameOver = true;
+    balance += currentBet*2;
+    xp += 50;
+    if (xp >= 100) {level++; xp=0;}
+    records.push(`${rows}x${cols}:${mineCount}`);
+    saveState();
+    updateUI();
+    alert("🎉 Победа!");
+  }
+}
+
+function toggleFlag(r,c) {
+  let cell = field[r][c];
+  if (cell.open) return;
+  cell.flagged = !cell.flagged;
+  cell.element.classList.toggle("flag");
+  cell.element.textContent = cell.flagged ? "🚩" : "";
+}
+
+function openCell(r,c) {
+  let cell = field[r][c];
+  if (cell.open || cell.flagged) return;
+  cell.open = true;
+  cell.element.classList.add("open");
+  if (cell.count>0) {
+    cell.element.textContent = cell.count;
+  } else {
+    for (let dr=-1; dr<=1; dr++) for (let dc=-1; dc<=1; dc++) {
+      let nr = r+dr, nc = c+dc;
+      if (nr>=0 && nr<rows && nc>=0 && nc<cols) openCell(nr,nc);
+    }
+  }
+}
+
+function revealAllMines() {
+  for (let r=0; r<rows; r++) for (let c=0; c<cols; c++) {
+    if (field[r][c].mine) {
+      field[r][c].element.classList.add("mine");
+      field[r][c].element.textContent = "💣";
+    }
+  }
+}
+
+function checkWin() {
+  for (let r=0; r<rows; r++) for (let c=0; c<cols; c++) {
+    if (!field[r][c].mine && !field[r][c].open) return false;
+  }
+  return true;
+}
+
+document.querySelectorAll("#shop button").forEach(btn=>{
+  btn.onclick = () => {
+    let cost = parseInt(btn.dataset.cost,10);
+    let item = btn.dataset.item;
+    if (balance >= cost) {
+      balance -= cost;
+      bonuses[item]++;
+      saveState();
+      updateUI();
+      alert(`Куплен бонус: ${item}`);
+    } else {
+      alert("Недостаточно монет!");
+    }
+  };
+});
+
+startGameBtn.onclick = () => {
+  let bet = parseInt(betInput.value,10);
+  if (isNaN(bet) || bet<=0 || bet>balance) {
+    alert("Некорректная ставка!");
+    return;
+  }
+  currentBet = bet;
+  [rows,cols,mineCount] = boardSizeSelect.value.split(",").map(Number);
+  createField();
+};
+
+loadState();
+addCoinsOverTime();
+
+// --- Admin Panel Logic ---
+function adminAddCoins() {
+  const val = parseInt(document.getElementById('adminCoins').value,10);
+  if (!isNaN(val)) {
+    balance += val;
+    saveState();
+    updateUI();
+    alert('Монеты добавлены.');
+  }
+}
+function adminResetProgress() {
+  if (confirm('Точно обнулить?')) {
+    balance = 1000; xp = 0; level = 1; records = []; bonuses = {hint:0, autoFlag:0, autoClear:0};
+    saveState();
+    updateUI();
+    alert('Прогресс обнулён.');
+  }
+}
+function adminGiveBonuses() {
+  bonuses.hint += 5;
+  bonuses.autoFlag += 5;
+  bonuses.autoClear += 5;
+  saveState();
+  updateUI();
+  alert('Выдано по 5 каждого бонуса.');
+}
+function adminLevelUp() {
+  level++;
+  saveState();
+  updateUI();
+  alert('Уровень повышен.');
+}
+// Toggle with Ctrl+Shift+A
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.shiftKey && e.code === 'KeyA') {
+    const panel = document.getElementById('adminPanel');
+    panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+  }
+});
+
+// Toggle with Ctrl+Shift+A (теперь с паролем)
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.shiftKey && e.code === 'KeyA') {
+    const password = prompt("Введите пароль для входа в админ-панель:");
+    if (password === "Hayk_2009") {
+      const panel = document.getElementById('adminPanel');
+      panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+    } else {
+      alert("❌ Неверный пароль!");
+    }
+  }
+});
+
+// --- Улучшённый доступ к админке: облачный пароль + динамическая панель ---
+(function(){
+  const CLOUD_PASSWORD = "Hayk_2009";
+  const ADMIN_SESSION_KEY = "admin_unlocked_until_v2";
+
+  // inject styles for modal & admin panel
+  const css = `#cloudModal{position:fixed;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(2,6,12,0.6);z-index:10000}
+  #cloudModal .modal-content{background:linear-gradient(180deg,#071023,#0d2a36);padding:20px;border-radius:12px;width:340px;color:#e6f7ff;box-shadow:0 12px 40px rgba(0,0,0,0.6);text-align:center;font-family:Arial, sans-serif}
+  #cloudModal h3{margin:0 0 6px 0;font-size:18px}
+  #cloudModal p{margin:0 0 12px 0;font-size:13px;color:#cfeefb}
+  #cloudModal input{width:100%;padding:10px;margin-top:6px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:#fff;outline:none}
+  #cloudModal .modal-actions{display:flex;gap:8px;margin-top:12px}
+  #cloudModal button{flex:1;padding:9px;border-radius:8px;border:none;cursor:pointer;background:linear-gradient(90deg,#00c896,#00a3ff);color:#042029;font-weight:600}
+  .shake{animation:shake .45s}
+  @keyframes shake{0%{transform:translateX(0)}20%{transform:translateX(-6px)}60%{transform:translateX(6px)}100%{transform:translateX(0)}}
+  .admin-panel-dynamic{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:360px;z-index:10001;background:linear-gradient(180deg,#08131a,#0b2430);padding:16px;border-radius:12px;color:#eaf9ff;box-shadow:0 14px 50px rgba(2,6,12,0.7);font-family:Arial, sans-serif}
+  .admin-panel-dynamic .panel-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .admin-panel-dynamic h3{margin:0;font-size:16px}
+  .admin-panel-dynamic input{width:100%;padding:8px;margin-top:6px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#fff;outline:none}
+  .admin-panel-dynamic button{width:100%;padding:9px;margin-top:8px;border-radius:8px;border:none;cursor:pointer;background:linear-gradient(90deg,#00c896,#00a3ff);color:#042029;font-weight:600}
+  .admin-panel-dynamic .row{display:flex;gap:8px}
+  `;
+  const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
+
+  function showCloudModal(){
+    if(document.getElementById('cloudModal')) return;
+    const modal = document.createElement('div'); modal.id = 'cloudModal';
+    modal.innerHTML = `<div class="modal-content"><h3>Облачный пароль</h3><p>Введите облачный пароль для доступа к админ-панели</p><input id="cloudPassInput" type="password" placeholder="Cloud password" autocomplete="off"/><div class="modal-actions"><button id="cloudUnlockBtn">Открыть</button><button id="cloudCancelBtn">Отмена</button></div></div>`;
+    document.body.appendChild(modal);
+    const input = modal.querySelector('#cloudPassInput');
+    modal.querySelector('#cloudCancelBtn').addEventListener('click', ()=> modal.remove());
+    modal.querySelector('#cloudUnlockBtn').addEventListener('click', attemptUnlock);
+    input.addEventListener('keydown', function(e){ if(e.key === 'Enter') attemptUnlock(); if(e.key === 'Escape') modal.remove(); });
+    setTimeout(()=>{ input.focus(); }, 30);
+  }
+
+  function attemptUnlock(){
+    const input = document.getElementById('cloudPassInput');
+    if(!input) return;
+    if(input.value === CLOUD_PASSWORD){
+      const modal = document.getElementById('cloudModal'); if(modal) modal.remove();
+      openAdminPanel();
+      // session: allow direct open for 5 minutes
+      sessionStorage.setItem(ADMIN_SESSION_KEY, (Date.now() + 5*60*1000).toString());
+    } else {
+      input.classList.add('shake'); setTimeout(()=> input.classList.remove('shake'), 450);
+      // можно заменить на более аккуратный toast, но alert достаточно явный
+      alert('Неверный облачный пароль');
+    }
+  }
+
+  function openAdminPanel(){
+    // если уже создана — просто показать/спрятать
+    if(document.getElementById('adminPanelDynamic')){
+      const p = document.getElementById('adminPanelDynamic');
+      p.style.display = p.style.display === 'none' ? 'block' : 'none';
+      return;
+    }
+    const panel = document.createElement('div');
+    panel.id = 'adminPanelDynamic';
+    panel.className = 'admin-panel-dynamic';
+    panel.innerHTML = `
+      <div class="panel-header"><h3>Админ-панель</h3><button id="adminCloseBtn" title="Закрыть">✕</button></div>
+      <label>Добавить монеты:</label>
+      <div class="row"><input type="number" id="adminCoins" placeholder="Кол-во"/><button id="adminAddBtn">Добавить</button></div>
+      <button id="adminResetBtn">Обнулить прогресс</button>
+      <button id="adminGiveBtn">Выдать бонусы</button>
+      <button id="adminLevelBtn">Повысить уровень</button>
+    `;
+    document.body.appendChild(panel);
+    panel.querySelector('#adminCloseBtn').addEventListener('click', ()=> panel.remove());
+    panel.querySelector('#adminAddBtn').addEventListener('click', ()=> { adminAddCoins(); });
+    panel.querySelector('#adminResetBtn').addEventListener('click', ()=> { adminResetProgress(); });
+    panel.querySelector('#adminGiveBtn').addEventListener('click', ()=> { adminGiveBonuses(); });
+    panel.querySelector('#adminLevelBtn').addEventListener('click', ()=> { adminLevelUp(); });
+  }
+
+  // key handler: Ctrl+Shift+A opens cloud modal (or admin directly if session active)
+  document.addEventListener('keydown', function(e){
+    if(e.ctrlKey && e.shiftKey && e.code === 'KeyA'){
+      const until = parseInt(sessionStorage.getItem(ADMIN_SESSION_KEY) || '0', 10);
+      if(Date.now() < until){
+        openAdminPanel();
+      } else {
+        showCloudModal();
+      }
+    }
+  });
+})();
+</script>
+
+
+</body>
+</html>
